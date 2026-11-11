@@ -19,9 +19,10 @@ Aucune fonctionnalité métier, aucune permission, aucun réseau, aucun SDK tier
 | Étape | Statut |
 |---|---|
 | Code TypeScript + config Expo | ✅ vérifié localement (`tsc`, `expo-doctor` 20/20) |
-| Projet natif iOS (`expo prebuild`) | ⏳ impossible sous Windows : se fait sur le runner macOS |
-| Compilation + IPA sur GitHub Actions | ⏳ pas encore exécuté |
-| Installation via AltServer sur iPhone | ⏳ pas encore testé : **l'IPA n'est pas réputé installable tant que ce test n'est pas fait** |
+| Projet natif iOS (`expo prebuild`) | ✅ généré sur le runner macOS (impossible sous Windows) |
+| Compilation + IPA sur GitHub Actions | ✅ compilé et inspecté en CI (2026-11-11) |
+| Installation via AltServer sur iPhone | ✅ **testé sur iPhone physique (2026-11-11)** : l'app affiche « READLOG — TEST iOS » et la version. Uniquement avec un **identifiant Apple secondaire**, car le compte principal a été verrouillé par Apple |
+| Rafraîchissement avant expiration (7 jours) | ⏳ à tester avant le 2026-11-18 |
 
 Le détail est dans [docs/TEST-RESULTS.md](docs/TEST-RESULTS.md).
 

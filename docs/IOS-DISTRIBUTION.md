@@ -32,7 +32,8 @@ Ces limites sont documentées publiquement par AltStore et la communauté. Elles
 ## Identifiants Apple
 
 - Saisis **uniquement dans AltServer**, sur votre PC. Jamais dans le dépôt, jamais dans les secrets GitHub.
-- Un identifiant Apple **secondaire**, dédié aux tests, est recommandé.
+- Un identifiant Apple **secondaire**, dédié aux tests, est **obligatoire**.
+- **Risque observé (2026-11-11) :** à la première tentative avec le compte principal, Apple a **verrouillé le compte** « pour des raisons de sécurité ». Le déverrouillage passe par https://iforgot.apple.com. La cause exacte n'est pas établie (voir TEST-RESULTS.md). Ce risque vaut aussi pour Sideloadly et SideStore, qui utilisent le même mécanisme de connexion.
 
 ## Si AltServer échoue : alternatives gratuites (non validées)
 

@@ -45,17 +45,29 @@ npm run doctor
 
 ## Étape 4 — Préparation du PC Windows (une seule fois)
 
-1. Installez **iTunes** et **iCloud** depuis le **site d'Apple**, et non depuis le Microsoft Store. AltServer documente cette exigence, car les versions du Store n'exposent pas les composants dont il a besoin.
-2. Installez **AltServer pour Windows** depuis le site officiel d'AltStore (altstore.io). Il est gratuit.
-3. Branchez l'iPhone en USB, déverrouillez-le et acceptez « Faire confiance à cet ordinateur ».
-4. Ouvrez iTunes et vérifiez que l'iPhone apparaît. Activez éventuellement « Synchroniser via Wi-Fi », ce qui est utile pour le rafraîchissement.
+1. Si iTunes ou iCloud viennent du **Microsoft Store**, désinstallez-les d'abord : AltServer exige les versions distribuées directement par Apple.
+2. La page iTunes d'Apple redirige vers le Microsoft Store sous Windows 10 et 11. Utilisez plutôt les liens directs donnés par la FAQ AltStore (faq.altstore.io, consultée le 2026-11-11) :
+   - iTunes 64 bits : https://www.apple.com/itunes/download/win64
+   - iCloud : https://updates.cdn-apple.com/2020/windows/001-39935-20200911-1A70AA56-F448-11EA-8CC0-99D41950005E/iCloudSetup.exe (build de 2020, celle qu'indique AltStore)
+3. Installez **AltServer pour Windows** : https://cdn.altstore.io/file/altstore/altinstaller.zip (dézippez-le, puis lancez `Setup.exe`). Il est gratuit. Dernière version listée dans les notes de version : 1.7.4.
+4. Lancez AltServer **en administrateur** (recherche Windows → « AltServer » → *Exécuter en tant qu'administrateur*) et autorisez l'accès aux réseaux privés si Windows le demande.
+5. Gardez **iTunes et iCloud ouverts** pendant toute l'utilisation d'AltServer.
+6. Branchez l'iPhone en USB, déverrouillez-le et acceptez « Faire confiance à cet ordinateur ».
+7. Ouvrez iTunes, vérifiez que l'iPhone apparaît, puis activez « Synchroniser via Wi-Fi » (nécessaire pour le rafraîchissement).
 
 **Réussite :** l'icône AltServer apparaît dans la zone de notification et iTunes voit l'iPhone.
 
 ## Étape 5 — Préparation de l'iPhone
 
 1. iOS ≥ **16.4** est requis (minimum d'Expo SDK 58) : vérifiez dans Réglages → Général → Informations.
-2. Installez AltStore via **AltServer → Install AltStore → \<votre iPhone\>** et saisissez votre identifiant Apple **dans AltServer uniquement**. Un identifiant Apple secondaire, dédié aux tests, est recommandé.
+2. Installez AltStore via **AltServer → Install AltStore → \<votre iPhone\>** et saisissez votre identifiant Apple **dans AltServer uniquement**.
+
+   > ⚠️ **Risque observé le 2026-11-11 : verrouillage du compte Apple** (« Ce compte Apple a été verrouillé pour des raisons de sécurité »). Pour l'éviter :
+   > - utilisez **obligatoirement un identifiant Apple secondaire**, dédié aux tests, avec la validation en deux étapes activée, et **jamais votre compte principal** ;
+   > - **une seule** instance d'AltServer (vérifiez dans le Gestionnaire des tâches), lancée en administrateur ;
+   > - **iTunes et iCloud ouverts** avant la tentative ;
+   > - **une seule tentative**. En cas d'échec, arrêtez-vous et notez le message exact dans TEST-RESULTS.md, sans réessayer en boucle ;
+   > - en cas de verrouillage : https://iforgot.apple.com.
 3. Sur l'iPhone, ouvrez **Réglages → Général → VPN et gestion de l'appareil**, puis faites confiance au profil développeur de votre identifiant Apple.
 4. Activez le **Mode développeur** dans **Réglages → Confidentialité et sécurité → Mode développeur**, puis redémarrez et confirmez. iOS 16 et suivants l'exigent pour les apps signées avec un certificat de développement.
 
