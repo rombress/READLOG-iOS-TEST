@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "READLOG-iOS-TEST",
+    "slug": "readlog-ios-test",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "platforms": ["ios"],
+    "ios": {
+      "bundleIdentifier": "com.readlog.iostest",
+      "buildNumber": "1",
+      "supportsTablet": false,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    }
+  }
+}

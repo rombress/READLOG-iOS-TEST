@@ -1,0 +1,193 @@
+# READLOG-iOS-TEST — compilation iOS non signée + empaquetage IPA
+#
+# Ce workflow :
+#   1. installe les dépendances (npm ci, à partir de package-lock.json)
+#   2. génère le projet natif iOS (expo prebuild — impossible sous Windows)
+#   3. installe les Pods (CocoaPods préinstallé sur le runner)
+#   4. compile en Release pour iphoneos SANS signature (CODE_SIGNING_ALLOWED=NO)
+#   5. empaquette le .app dans Payload/ puis en .ipa
+#   6. contrôle le contenu de l'IPA et le publie en artefact
+#
+# L'IPA produit N'EST PAS SIGNÉ. Il doit être signé par AltServer (compte Apple
+# gratuit) au moment de l'installation. Son installabilité n'est pas garantie
+# tant que le test réel sur iPhone (docs/TEST-PROTOCOL.md) n'a pas été fait.
+#
+# Aucun secret, identifiant Apple, certificat ni profil n'est utilisé ici.
+
+name: ios-test
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-unsigned-ipa:
+    # Expo SDK 58 exige Xcode >= 26.4. macos-26 fournit Xcode 26.6 par défaut
+    # (macos-15 s'arrête à Xcode 26.3). Runner standard : gratuit en dépôt public.
+    runs-on: macos-26
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Check Xcode version (>= 26.4 required by Expo SDK 58)
+        run: |
+          xcodebuild -version
+          XCODE_VERSION=$(xcodebuild -version | awk '/^Xcode/ {print $2}')
+          MAJOR=$(echo "$XCODE_VERSION" | cut -d. -f1)
+          MINOR=$(echo "$XCODE_VERSION" | cut -d. -f2)
+          MINOR=${MINOR:-0}
+          if [ "$MAJOR" -lt 26 ] || { [ "$MAJOR" -eq 26 ] && [ "$MINOR" -lt 4 ]; }; then
+            echo "::error::Xcode $XCODE_VERSION < 26.4 — incompatible avec Expo SDK 58"
+            exit 1
+          fi
+          pod --version
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Generate native iOS project (expo prebuild)
+        run: npx expo prebuild --platform ios --clean --no-install
+
+      - name: Detect workspace / scheme
+        id: detect
+        run: |
+          WORKSPACE=$(find ios -maxdepth 1 -name '*.xcworkspace' -print -quit)
+          if [ -z "$WORKSPACE" ]; then
+            # Avant pod install, seul le .xcodeproj existe : on en déduit le nom.
+            PROJ=$(find ios -maxdepth 1 -name '*.xcodeproj' -print -quit)
+            NAME=$(basename "$PROJ" .xcodeproj)
+          else
+            NAME=$(basename "$WORKSPACE" .xcworkspace)
+          fi
+          if [ -z "$NAME" ]; then echo "::error::Projet iOS introuvable dans ios/"; ls -la ios; exit 1; fi
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "Projet iOS détecté : $NAME"
+
+      - name: Install CocoaPods dependencies
+        working-directory: ios
+        run: pod install
+
+      - name: Build (Release, iphoneos, unsigned)
+        env:
+          NAME: ${{ steps.detect.outputs.name }}
+        run: |
+          mkdir -p build
+          if ! xcodebuild \
+            -workspace "ios/$NAME.xcworkspace" \
+            -scheme "$NAME" \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build > build/xcodebuild.log 2>&1; then
+            echo "::error::xcodebuild a échoué — extrait du log ci-dessous (log complet en artefact)"
+            grep -E 'error:' build/xcodebuild.log | head -n 50 || true
+            tail -n 150 build/xcodebuild.log
+            exit 1
+          fi
+          grep -E '\*\* BUILD' build/xcodebuild.log
+
+      - name: Package IPA
+        id: package
+        env:
+          NAME: ${{ steps.detect.outputs.name }}
+        run: |
+          APP_PATH=$(find build/DerivedData/Build/Products/Release-iphoneos -maxdepth 1 -name '*.app' -print -quit)
+          if [ -z "$APP_PATH" ]; then echo "::error::Aucun .app produit"; exit 1; fi
+          echo "App : $APP_PATH"
+          rm -rf build/ipa && mkdir -p build/ipa/Payload
+          cp -R "$APP_PATH" build/ipa/Payload/
+          IPA_NAME="READLOG-iOS-TEST-unsigned.ipa"
+          (cd build/ipa && zip -qry "../$IPA_NAME" Payload)
+          echo "ipa=build/$IPA_NAME" >> "$GITHUB_OUTPUT"
+          echo "app=$APP_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Inspect IPA (structure, bundle JS, arch, permissions)
+        env:
+          APP_PATH: ${{ steps.package.outputs.app }}
+          IPA: ${{ steps.package.outputs.ipa }}
+        run: |
+          APP_DIR=$(basename "$APP_PATH")
+          BIN=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APP_PATH/Info.plist")
+          echo "--- Structure (doit commencer par Payload/$APP_DIR/)"
+          unzip -l "$IPA" | head -n 15
+          unzip -l "$IPA" | grep -q "Payload/$APP_DIR/Info.plist" || { echo "::error::Structure IPA invalide"; exit 1; }
+
+          echo "--- Bundle JS embarqué (requis en Release, sinon l'app chercherait Metro)"
+          test -f "$APP_PATH/main.jsbundle" || { echo "::error::main.jsbundle absent"; exit 1; }
+          ls -lh "$APP_PATH/main.jsbundle"
+
+          echo "--- Architecture du binaire (attendu : arm64)"
+          lipo -info "$APP_PATH/$BIN"
+          lipo -info "$APP_PATH/$BIN" | grep -q arm64 || { echo "::error::binaire non arm64"; exit 1; }
+
+          echo "--- Info.plist (identité)"
+          for KEY in CFBundleIdentifier CFBundleShortVersionString CFBundleVersion MinimumOSVersion; do
+            echo "$KEY = $(/usr/libexec/PlistBuddy -c "Print :$KEY" "$APP_PATH/Info.plist")"
+          done
+
+          echo "--- Permissions déclarées (attendu : aucune clé *UsageDescription)"
+          if plutil -p "$APP_PATH/Info.plist" | grep -E 'UsageDescription|UIBackgroundModes'; then
+            echo "::warning::Des clés de permission sont présentes dans Info.plist — à examiner"
+          else
+            echo "Aucune clé de permission."
+          fi
+
+          echo "--- Signature (attendu : non signé)"
+          codesign -dv "$APP_PATH" 2>&1 || true
+          if [ -f "$APP_PATH/embedded.mobileprovision" ]; then
+            echo "::warning::Un profil de provisionnement est embarqué (inattendu)"
+          else
+            echo "Pas de profil embarqué (normal : AltServer signera)."
+          fi
+
+          echo "--- Entitlements générés par prebuild (un compte gratuit ne supporte pas push, iCloud, etc.)"
+          find ios -name '*.entitlements' -exec sh -c 'echo "$1"; plutil -p "$1"' _ {} \;
+
+          echo "--- Taille et SHA-256"
+          ls -lh "$IPA"
+          shasum -a 256 "$IPA" | tee "$IPA.sha256"
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: READLOG-iOS-TEST-unsigned-ipa
+          path: |
+            ${{ steps.package.outputs.ipa }}
+            ${{ steps.package.outputs.ipa }}.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-log
+          path: build/xcodebuild.log
+          if-no-files-found: ignore
+          retention-days: 7
